@@ -7,6 +7,42 @@ unsigned int rawSpeed;
 unsigned int angle;
 unsigned int speed;
 
+// void processDriveMsg(canMsg_t msg)
+// {
+//     switch (getDevice())
+//     {
+//     case DRIVEBOARD_1:
+//     case DRIVEBOARD_2:
+//         processFrontWheels(msg);
+//         break;
+//     case DRIVEBOARD_3:
+//     case DRIVEBOARD_4:
+//         processMiddleWheels(msg);
+//         break;
+//     case DRIVEBOARD_5:
+//     case DRIVEBOARD_6:
+//         processBackWheels(msg);
+//         break;
+//     default:
+//         break;
+//     }
+// }
+
+// void processFrontWheels(canMsg_t msg)
+// {
+//     //takes joystick position and converts it to what the front 2 wheels need to do 
+// }
+
+// void processMiddleWheels(canMsg_t msg)
+// {
+//     //takes joystick position and converts it to what the middle 2 wheels need to do 
+// }
+
+// void processBackWheels(canMsg_t msg)
+// {
+//     //takes joystick position and converts it to what the back 2 wheels need to do 
+// }
+
 void processDriveMsg(canMsg_t msg)
 {
     switch (getDevice())
@@ -15,10 +51,10 @@ void processDriveMsg(canMsg_t msg)
         //use bytes 0-3 to control front left drive and steer motors
 
         //could probably optimize using fucntion with a for loop and some math
-        rawAngle = (((msg.data[0] << 8) | msg.data[1]) & 0xFFF);
+        rawAngle = (((msg.data[0] << 8) | msg.data[1]) & 0xFF);
         direction = ((msg.data[2] >> 4 ) & 0x1);
         //possibly add a nuetral bit and if its set then that motor goes limp
-        rawSpeed = (((msg.data[2] << 8) | msg.data[3]) & 0xFFF);
+        rawSpeed = (((msg.data[2] << 8) | msg.data[3]) & 0xFF);
 
         //could optimize using by making scaling functions
         angle = rawAngle * 0.0439453125;// 12bit - 180degrees

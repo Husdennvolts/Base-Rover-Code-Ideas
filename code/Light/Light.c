@@ -5,6 +5,6 @@ void processLightMsg(canMsg_t msg)
 {
     if(getDevice() == LIGHTBOARD)
     {
-        //use mssage data to control the Fans
+        //convert mssage data PWM signals for each light and set the pinouts to the corresponding intensiy
     }
 }

@@ -1,12 +1,6 @@
 #include "definitions.h"
 
-typedef struct
-{
-    float tempAvg1;
-    float tempAvg2;
-    int samples;
-    const int maxSamples;// = 10;
-}runningAvg_t;
-
-void processFanMsg(canMsg_t);
+void processTempMsg(canMsg_t);
+void updateBoardTemps(canMsg_t, int);
 float tempRunningAvg(float, float);
+int tempToPWM(float, float);

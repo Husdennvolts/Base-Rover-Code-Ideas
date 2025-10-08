@@ -27,6 +27,7 @@ typedef enum
     ARMBOARD,
     LIGHTBOARD,
     FANBOARD,
+    TRANSLATOR,
     INVALID
 } Device_t;
 
