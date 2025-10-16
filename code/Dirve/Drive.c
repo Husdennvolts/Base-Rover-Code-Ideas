@@ -1,48 +1,15 @@
 #include "Drive.h"
 #include "Init/Init.h"
 
-unsigned int rawAngle;
+unsigned int step = 0;
 unsigned int direction;
-unsigned int rawSpeed;
-unsigned int angle;
-unsigned int speed;
-
-// void processDriveMsg(canMsg_t msg)
-// {
-//     switch (getDevice())
-//     {
-//     case DRIVEBOARD_1:
-//     case DRIVEBOARD_2:
-//         processFrontWheels(msg);
-//         break;
-//     case DRIVEBOARD_3:
-//     case DRIVEBOARD_4:
-//         processMiddleWheels(msg);
-//         break;
-//     case DRIVEBOARD_5:
-//     case DRIVEBOARD_6:
-//         processBackWheels(msg);
-//         break;
-//     default:
-//         break;
-//     }
-// }
-
-// void processFrontWheels(canMsg_t msg)
-// {
-//     //takes joystick position and converts it to what the front 2 wheels need to do 
-// }
-
-// void processMiddleWheels(canMsg_t msg)
-// {
-//     //takes joystick position and converts it to what the middle 2 wheels need to do 
-// }
-
-// void processBackWheels(canMsg_t msg)
-// {
-//     //takes joystick position and converts it to what the back 2 wheels need to do 
-// }
-
+unsigned int rawAngle = 0;
+unsigned int rawSpeed = 0;
+unsigned int reqAngle = 0;
+unsigned int reqSpeed = 0;
+unsigned int currAngle = 0;
+unsigned int currSpeed = 0;
+/*---------------------------------------------------------CAN communication stuff------------------------------------------------------------*/
 void processDriveMsg(canMsg_t msg)
 {
     switch (getDevice())
@@ -57,11 +24,8 @@ void processDriveMsg(canMsg_t msg)
         rawSpeed = (((msg.data[2] << 8) | msg.data[3]) & 0xFF);
 
         //could optimize using by making scaling functions
-        angle = rawAngle * 0.0439453125;// 12bit - 180degrees
-        speed = rawSpeed * 0.0244140625;// 12bit - 100%
-
-        controlDriveMotor(speed, direction);
-        controlSteerMotor(angle);
+        reqAngle = rawAngle * 0.0439453125;// 12bit: (-90 - 90)degrees
+        reqSpeed = rawSpeed * 0.0244140625;// 12bit: (0 - 100)%
         break;
     case DRIVEBOARD_2:
         //use bytes 4-7 to control front left drive and steer motors
@@ -82,18 +46,58 @@ void processDriveMsg(canMsg_t msg)
         break;
     }
 }
-
-//the heaviest part of this will be swapping between reading encoder values and changing phases to drive the motor 
-//it will be tricky to swap contexts between reaing and adjusting till you reach you desired angle
-//may need some sort of rtos to handle something like this not to sure
-void controlDriveMotor(unsigned int speed, unsigned int direction)
+/*---------------------------------------------------------BLDC motor stuff------------------------------------------------------------*/
+void controlDriveMotor()
 {
     //could add a buffer for speed so it does waste resources always setting changing the speed of the motor (if speed is is withing + or - 5% dont change)
-    //maybe only change direction when the direction bit changes
+    //only change direction when the direction bit changes
     //justin would like a brake motor as well so if nuetral bit isnt set and speed is 0 the brake motor will hold the wheel in position
-    //read encoder and swap phases at a rate determined by the requested speed 
+    //read encoder and swap phases at a rate determined by the requested speed (my head hurts thinking about doing this)
+
+
+    int driveEncoderPosition;
+    const unsigned int commutation_table[6][6] = {
+    {1, 0, 0, 0, 1, 0}, // Step 1
+    {1, 0, 0, 1, 0, 0}, // Step 2
+    {0, 0, 1, 1, 0, 0}, // Step 3
+    {0, 1, 1, 0, 0, 0}, // Step 4
+    {0, 1, 0, 0, 0, 1}, // Step 5
+    {0, 0, 0, 0, 1, 1}  // Step 6
+    };
+
+//Determine what PWM channels to power based on encoder position 
+    //use the hal function to get the encoder value
+    driveEncoderPosition = getEncoderAngle();
+    /*  
+    (0xFFFF / 6) breaks the total range of the ecoder into six segments 
+    (encoderPosition / (0xFFFF / 6)) find which of the six segments the its currently in
+    (encoderPosition / (0xFFFF / 6)) % 6 gives a value from 0-5 even if an overflow occurs
+    */
+    step = (driveEncoderPosition / (0xFFFF / 6)) % 6;
+    SetPWM();
 }
-void controlSteerMotor(unsigned int angle)
+
+void SetPWM()
+{
+    /*
+    1. use the step calculated to know what pwm channels to turn on
+    2. use a PID or equivalent method to adjust the current speed up to the requested speed
+    3. use the output of the PID to set the high pwm duty cycle
+    */
+}
+/*---------------------------------------------------------Steer motor stuff------------------------------------------------------------*/
+void controlSteerMotor()
+{
+    //read absolute encoder and adjust angle till current and requested angle match
+
+    int steerEncoderPosition;
+
+    //use the hal function to get the encoder value
+    steerEncoderPosition = getEncoderAngle();
+    // use a PID or equivalent method to adjust the current angle to the requested angle
+}
+/*---------------------------------------------------------brake motor stuff------------------------------------------------------------*/
+void controlBrakeMotor()
 {
     //read absolute encoder and adjust angle till current and requested angle match
 }
