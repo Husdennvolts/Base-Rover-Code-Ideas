@@ -2,7 +2,7 @@
 
 void processDriveMsg(canMsg_t);
 void controlDriveMotor();
-void SetPWM();
+void SetPWM(int);
 void controlSteerMotor();
 void controlbrakeMotor();
 

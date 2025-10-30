@@ -1,31 +1,40 @@
 #include "Drive.h"
 #include "Init/Init.h"
 
-unsigned int step = 0;
-unsigned int direction;
-unsigned int rawAngle = 0;
-unsigned int rawSpeed = 0;
 unsigned int reqAngle = 0;
 unsigned int reqSpeed = 0;
 unsigned int currAngle = 0;
 unsigned int currSpeed = 0;
+unsigned int dutyCycle = 0;
 /*---------------------------------------------------------CAN communication stuff------------------------------------------------------------*/
 void processDriveMsg(canMsg_t msg)
 {
+    unsigned int rawAngle = 0;
+    unsigned int rawSpeed = 0;
+    unsigned int direction;
+    unsigned int nuetral;
+
     switch (getDevice())
     {
     case DRIVEBOARD_1:
         //use bytes 0-3 to control front left drive and steer motors
 
+        // [0000 0000] [0000 0000]   [0000 0000] [0000 0000]
+        // |___| |_______________|     |_| |_______________|
+        //   |           |              |         |
+        //   |    all for steering  direction   speed
+        //unused                     nuetral
+
         //could probably optimize using fucntion with a for loop and some math
         rawAngle = (((msg.data[0] << 8) | msg.data[1]) & 0xFF);
         direction = ((msg.data[2] >> 4 ) & 0x1);
+        nuetral = ((msg.data[2] >> 5 ) & 0x1);
         //possibly add a nuetral bit and if its set then that motor goes limp
-        rawSpeed = (((msg.data[2] << 8) | msg.data[3]) & 0xFF);
+        rawSpeed = ((((msg.data[2] << 8) & 0xF) | msg.data[3]) & 0xFF);
 
         //could optimize using by making scaling functions
         reqAngle = rawAngle * 0.0439453125;// 12bit: (-90 - 90)degrees
-        reqSpeed = rawSpeed * 0.0244140625;// 12bit: (0 - 100)%
+        speedPID(rawSpeed, direction);
         break;
     case DRIVEBOARD_2:
         //use bytes 4-7 to control front left drive and steer motors
@@ -46,24 +55,13 @@ void processDriveMsg(canMsg_t msg)
         break;
     }
 }
+
 /*---------------------------------------------------------BLDC motor stuff------------------------------------------------------------*/
-void controlDriveMotor()
+void encoderISRCallback()
 {
-    //could add a buffer for speed so it does waste resources always setting changing the speed of the motor (if speed is is withing + or - 5% dont change)
-    //only change direction when the direction bit changes
-    //justin would like a brake motor as well so if nuetral bit isnt set and speed is 0 the brake motor will hold the wheel in position
-    //read encoder and swap phases at a rate determined by the requested speed (my head hurts thinking about doing this)
-
-
     int driveEncoderPosition;
-    const unsigned int commutation_table[6][6] = {
-    {1, 0, 0, 0, 1, 0}, // Step 1
-    {1, 0, 0, 1, 0, 0}, // Step 2
-    {0, 0, 1, 1, 0, 0}, // Step 3
-    {0, 1, 1, 0, 0, 0}, // Step 4
-    {0, 1, 0, 0, 0, 1}, // Step 5
-    {0, 0, 0, 0, 1, 1}  // Step 6
-    };
+    int currentStep = 0;
+    int lastStep = 0;
 
 //Determine what PWM channels to power based on encoder position 
     //use the hal function to get the encoder value
@@ -73,18 +71,61 @@ void controlDriveMotor()
     (encoderPosition / (0xFFFF / 6)) find which of the six segments the its currently in
     (encoderPosition / (0xFFFF / 6)) % 6 gives a value from 0-5 even if an overflow occurs
     */
-    step = (driveEncoderPosition / (0xFFFF / 6)) % 6;
-    SetPWM();
+    //this is for 1 pole pair and will need to be adjusted if the BLDC has more pole pairs
+    currentStep = (driveEncoderPosition / (0xFFFF / 6)) % 6;
+
+    if (currentStep != lastStep)
+    {
+        lastStep = currentStep;
+        SetPWM(currentStep);     
+    }
 }
 
-void SetPWM()
+void speedPID(int rawSpeed, int direction)
 {
-    /*
-    1. use the step calculated to know what pwm channels to turn on
-    2. use a PID or equivalent method to adjust the current speed up to the requested speed
-    3. use the output of the PID to set the high pwm duty cycle
-    */
+    reqSpeed = (rawSpeed * 0.0244140625);// 12bit: (0 - 100)%
+
+    //implement PID to increase speed by adjusting the PWM duty cycle
 }
+
+void SetPWM(int step)
+{
+    //reset all the phases to 0
+
+    switch (step) {
+        case 0:
+            // Set PWM for step 0
+                // Phase A High
+                // Phase B Low
+            break;
+        case 1:
+            // Set PWM for step 1
+                // Phase A High
+                // Phase C Low
+            break;
+        case 2:
+            // Set PWM for step 2
+                // Phase B High
+                // Phase C Low
+            break;
+        case 3:
+            // Set PWM for step 3
+                // Phase B High
+                // Phase A Low
+            break;
+        case 4:
+            // Set PWM for step 4
+                // Phase C High
+                // Phase A Low
+            break;
+        case 5:
+            // Set PWM for step 5
+                // Phase C High
+                // Phase B Low
+            break;
+    }
+}
+
 /*---------------------------------------------------------Steer motor stuff------------------------------------------------------------*/
 void controlSteerMotor()
 {
